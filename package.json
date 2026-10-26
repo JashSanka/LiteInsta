@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node src/index.js",
-    "seed": "prisma db seed"
+    "seed": "prisma db seed",
+    "test": "node test/api.test.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
