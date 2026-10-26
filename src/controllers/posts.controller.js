@@ -1,14 +1,30 @@
 const postsService = require("../services/posts.service");
+const usersService = require("../services/users.service");
 const { parsePagination, formatPaginatedResponse } = require("../utils/pagination");
 
 async function create(req, res) {
-  const { imageUrl, caption, location } = req.body || {};
-  if (!imageUrl) {
-    return res.status(400).json({ error: "imageUrl is required" });
+  const { imageUrl, authorId, caption, location } = req.body || {};
+  if (!imageUrl || !authorId) {
+    return res.status(400).json({ error: "imageUrl and authorId are required" });
+  }
+
+  const authorIdNum = parseInt(authorId, 10);
+  if (isNaN(authorIdNum)) {
+    return res.status(404).json({ error: "User not found" });
   }
 
   try {
-    const post = await postsService.createPost({ imageUrl, caption, location });
+    const authorExists = await usersService.checkUserExists(authorIdNum);
+    if (!authorExists) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const post = await postsService.createPost({
+      imageUrl,
+      authorId: authorIdNum,
+      caption,
+      location,
+    });
     return res.status(201).json(post);
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -23,9 +39,9 @@ async function list(req, res) {
 
   const { sortBy = "createdAt", order = "desc", location, search, from, to } = req.query;
 
-  const allowedSortBy = ["createdAt", "updatedAt"];
+  const allowedSortBy = ["createdAt", "updatedAt", "likes"];
   if (!allowedSortBy.includes(sortBy)) {
-    return res.status(400).json({ error: "sortBy must be one of: createdAt, updatedAt" });
+    return res.status(400).json({ error: "sortBy must be one of: createdAt, updatedAt, likes" });
   }
 
   if (order !== "asc" && order !== "desc") {
@@ -65,7 +81,12 @@ async function list(req, res) {
     if (toDate) where.createdAt.lt = toDate;
   }
 
-  const orderBy = { [sortBy]: order };
+  let orderBy;
+  if (sortBy === "likes") {
+    orderBy = [{ likes: { _count: order } }, { createdAt: "desc" }];
+  } else {
+    orderBy = [{ [sortBy]: order }];
+  }
 
   try {
     const { data, total } = await postsService.listPosts({

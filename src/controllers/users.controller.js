@@ -24,7 +24,7 @@ async function list(req, res) {
     return res.status(400).json({ error: pagination.error });
   }
 
-  const { sortBy = "createdAt", order = "desc", isPrivate, search } = req.query;
+  const { sortBy = "createdAt", order = "desc", isPrivate, search, hasPosts } = req.query;
 
   const allowedSortBy = ["createdAt", "username", "fullname"];
   if (!allowedSortBy.includes(sortBy)) {
@@ -44,6 +44,16 @@ async function list(req, res) {
       where.isPrivate = false;
     } else {
       return res.status(400).json({ error: "isPrivate must be true or false" });
+    }
+  }
+
+  if (hasPosts !== undefined) {
+    if (hasPosts === "true") {
+      where.posts = { some: {} };
+    } else if (hasPosts === "false") {
+      where.posts = { none: {} };
+    } else {
+      return res.status(400).json({ error: "hasPosts must be true or false" });
     }
   }
 
@@ -82,6 +92,62 @@ async function getOne(req, res) {
       return res.status(404).json({ error: "User not found" });
     }
     return res.status(200).json(user);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+async function getUserPosts(req, res) {
+  const userId = parseInt(req.params.id, 10);
+  if (isNaN(userId)) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  const pagination = parsePagination(req.query);
+  if (pagination.error) {
+    return res.status(400).json({ error: pagination.error });
+  }
+
+  try {
+    const exists = await usersService.checkUserExists(userId);
+    if (!exists) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const { data, total } = await usersService.getUserPosts(userId, {
+      skip: pagination.skip,
+      take: pagination.limit,
+    });
+
+    return res.status(200).json(formatPaginatedResponse(data, total, pagination.page, pagination.limit));
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+async function getUserLikedPosts(req, res) {
+  const userId = parseInt(req.params.id, 10);
+  if (isNaN(userId)) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  const pagination = parsePagination(req.query);
+  if (pagination.error) {
+    return res.status(400).json({ error: pagination.error });
+  }
+
+  try {
+    const exists = await usersService.checkUserExists(userId);
+    if (!exists) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const { data, total } = await usersService.getUserLikedPosts(userId, {
+      skip: pagination.skip,
+      take: pagination.limit,
+    });
+
+    return res.status(200).json(formatPaginatedResponse(data, total, pagination.page, pagination.limit));
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -131,6 +197,8 @@ module.exports = {
   create,
   list,
   getOne,
+  getUserPosts,
+  getUserLikedPosts,
   update,
   remove,
 };

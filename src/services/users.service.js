@@ -28,7 +28,77 @@ async function listUsers({ skip, take, where = {}, orderBy = {} } = {}) {
 async function getUserById(id) {
   return await prisma.user.findUnique({
     where: { id: parseInt(id, 10) },
+    include: {
+      _count: {
+        select: {
+          posts: true,
+          likes: true,
+        },
+      },
+    },
   });
+}
+
+async function checkUserExists(id) {
+  const user = await prisma.user.findUnique({
+    where: { id: parseInt(id, 10) },
+    select: { id: true },
+  });
+  return !!user;
+}
+
+async function getUserPosts(userId, { skip, take } = {}) {
+  const where = { authorId: parseInt(userId, 10) };
+  const [data, total] = await prisma.$transaction([
+    prisma.post.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+      include: {
+        _count: {
+          select: { likes: true },
+        },
+      },
+    }),
+    prisma.post.count({ where }),
+  ]);
+
+  return { data, total };
+}
+
+async function getUserLikedPosts(userId, { skip, take } = {}) {
+  const where = {
+    likes: {
+      some: {
+        userId: parseInt(userId, 10),
+      },
+    },
+  };
+
+  const [data, total] = await prisma.$transaction([
+    prisma.post.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+      include: {
+        author: {
+          select: {
+            id: true,
+            username: true,
+            fullname: true,
+          },
+        },
+        _count: {
+          select: { likes: true },
+        },
+      },
+    }),
+    prisma.post.count({ where }),
+  ]);
+
+  return { data, total };
 }
 
 async function updateUser(id, data) {
@@ -53,6 +123,9 @@ module.exports = {
   createUser,
   listUsers,
   getUserById,
+  checkUserExists,
+  getUserPosts,
+  getUserLikedPosts,
   updateUser,
   deleteUser,
 };
