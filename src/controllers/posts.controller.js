@@ -1,4 +1,5 @@
 const postsService = require("../services/posts.service");
+const { parsePagination, formatPaginatedResponse } = require("../utils/pagination");
 
 async function create(req, res) {
   const { imageUrl, caption, location } = req.body || {};
@@ -15,9 +16,66 @@ async function create(req, res) {
 }
 
 async function list(req, res) {
+  const pagination = parsePagination(req.query);
+  if (pagination.error) {
+    return res.status(400).json({ error: pagination.error });
+  }
+
+  const { sortBy = "createdAt", order = "desc", location, search, from, to } = req.query;
+
+  const allowedSortBy = ["createdAt", "updatedAt"];
+  if (!allowedSortBy.includes(sortBy)) {
+    return res.status(400).json({ error: "sortBy must be one of: createdAt, updatedAt" });
+  }
+
+  if (order !== "asc" && order !== "desc") {
+    return res.status(400).json({ error: "order must be asc or desc" });
+  }
+
+  const where = {};
+
+  if (location) {
+    where.location = { equals: location, mode: "insensitive" };
+  }
+
+  if (search) {
+    where.caption = { contains: search, mode: "insensitive" };
+  }
+
+  let fromDate;
+  let toDate;
+
+  if (from !== undefined) {
+    fromDate = new Date(from);
+    if (isNaN(fromDate.getTime())) {
+      return res.status(400).json({ error: "from and to must be valid dates" });
+    }
+  }
+
+  if (to !== undefined) {
+    toDate = new Date(to);
+    if (isNaN(toDate.getTime())) {
+      return res.status(400).json({ error: "from and to must be valid dates" });
+    }
+  }
+
+  if (fromDate || toDate) {
+    where.createdAt = {};
+    if (fromDate) where.createdAt.gte = fromDate;
+    if (toDate) where.createdAt.lt = toDate;
+  }
+
+  const orderBy = { [sortBy]: order };
+
   try {
-    const posts = await postsService.listPosts();
-    return res.status(200).json(posts);
+    const { data, total } = await postsService.listPosts({
+      skip: pagination.skip,
+      take: pagination.limit,
+      where,
+      orderBy,
+    });
+
+    return res.status(200).json(formatPaginatedResponse(data, total, pagination.page, pagination.limit));
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

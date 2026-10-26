@@ -1,4 +1,5 @@
 const usersService = require("../services/users.service");
+const { parsePagination, formatPaginatedResponse } = require("../utils/pagination");
 
 async function create(req, res) {
   const { username, email, fullname, bio } = req.body || {};
@@ -18,9 +19,52 @@ async function create(req, res) {
 }
 
 async function list(req, res) {
+  const pagination = parsePagination(req.query);
+  if (pagination.error) {
+    return res.status(400).json({ error: pagination.error });
+  }
+
+  const { sortBy = "createdAt", order = "desc", isPrivate, search } = req.query;
+
+  const allowedSortBy = ["createdAt", "username", "fullname"];
+  if (!allowedSortBy.includes(sortBy)) {
+    return res.status(400).json({ error: "sortBy must be one of: createdAt, username, fullname" });
+  }
+
+  if (order !== "asc" && order !== "desc") {
+    return res.status(400).json({ error: "order must be asc or desc" });
+  }
+
+  const where = {};
+
+  if (isPrivate !== undefined) {
+    if (isPrivate === "true") {
+      where.isPrivate = true;
+    } else if (isPrivate === "false") {
+      where.isPrivate = false;
+    } else {
+      return res.status(400).json({ error: "isPrivate must be true or false" });
+    }
+  }
+
+  if (search) {
+    where.OR = [
+      { username: { contains: search, mode: "insensitive" } },
+      { fullname: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  const orderBy = { [sortBy]: order };
+
   try {
-    const users = await usersService.listUsers();
-    return res.status(200).json(users);
+    const { data, total } = await usersService.listUsers({
+      skip: pagination.skip,
+      take: pagination.limit,
+      where,
+      orderBy,
+    });
+
+    return res.status(200).json(formatPaginatedResponse(data, total, pagination.page, pagination.limit));
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
