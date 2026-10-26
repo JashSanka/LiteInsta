@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.log
+
+# macOS
+.DS_Store
+
+# Editor settings
+.vscode/
+.idea/
+
+# AI and IDE tool directories
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
+
+# Temporary and generated files
+coverage/
+.nyc_output/
+dist/
+build/
+/generated/
