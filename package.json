@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",
-    "prisma": "^7.10.0"
+    "prisma": "^7.10.0",
+    "prisma-lazy-namer": "^1.0.0"
   }
 }
